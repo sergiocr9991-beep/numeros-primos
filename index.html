@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberPrime Matrix</title>
+    <style>
+        :root {
+            --neon-cyan: #00fbff;
+            --neon-magenta: #ff00ff;
+            --neon-yellow: #fbee09;
+            --bg-black: #050505;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-black);
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--neon-cyan);
+        }
+
+        #matrix-canvas, #effect-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #matrix-canvas { z-index: 1; opacity: 0.8; }
+        #effect-canvas { z-index: 20; pointer-events: none; }
+
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            z-index: 30;
+        }
+
+        .container {
+            position: relative;
+            z-index: 40;
+            background: rgba(5, 5, 5, 0.9);
+            padding: 3rem;
+            border: 2px solid var(--neon-magenta);
+            box-shadow: 0 0 20px var(--neon-magenta), inset 0 0 10px var(--neon-magenta);
+            text-align: center;
+            width: 90%;
+            max-width: 450px;
+            clip-path: polygon(0% 15%, 10% 0%, 100% 0%, 100% 85%, 90% 100%, 0% 100%);
+            backdrop-filter: blur(5px);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: var(--neon-cyan);
+            font-size: 2.2rem;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            text-shadow: 2px 2px 0px var(--neon-magenta);
+            margin-bottom: 2rem;
+        }
+
+        input {
+            width: 80%;
+            padding: 15px;
+            background: #000;
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-yellow);
+            font-size: 1.8rem;
+            text-align: center;
+            outline: none;
+            margin-bottom: 2rem;
+            box-shadow: 0 0 10px var(--neon-cyan);
+        }
+
+        button {
+            background: transparent;
+            border: 2px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            padding: 15px 35px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: var(--neon-cyan);
+            color: #000;
+            box-shadow: 0 0 30px var(--neon-cyan);
+        }
+
+        #result {
+            margin-top: 2rem;
+            font-weight: bold;
+            font-size: 1.8rem;
+            min-height: 2.5rem;
+            text-transform: uppercase;
+        }
+
+        .credit {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            font-size: 0.75rem;
+            color: var(--neon-magenta);
+            z-index: 100;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            background: rgba(0,0,0,0.8);
+            padding: 5px 15px;
+            border-left: 3px solid var(--neon-cyan);
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0); }
+            20% { transform: translate(-3px, 3px); }
+            40% { transform: translate(-3px, -3px); }
+            60% { transform: translate(3px, 3px); }
+            80% { transform: translate(3px, -3px); }
+            100% { transform: translate(0); }
+        }
+
+        .glitch-active {
+            animation: glitch 0.15s linear infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="scanlines"></div>
+    <canvas id="matrix-canvas"></canvas>
+    <canvas id="effect-canvas"></canvas>
+
+    <div class="container" id="uiBox">
+        <h1>PRIME_CHECKER_V2</h1>
+        <input type="number" id="numberInput" placeholder=">_VAL" min="0">
+        <br>
+        <button onclick="checkPrime()">ANALIZAR_NUCLEO</button>
+        <div id="result"></div>
+    </div>
+
+    <div class="credit">
+        elaborado por sergio coll
+    </div>
+
+    <script>
+        const mCanvas = document.getElementById('matrix-canvas');
+        const mCtx = mCanvas.getContext('2d');
+        const eCanvas = document.getElementById('effect-canvas');
+        const eCtx = eCanvas.getContext('2d');
+
+        let width, height, columns;
+        const fontSize = 16;
+        let drops = [];
+        const particles = [];
+
+        function init() {
+            resize();
+            animate();
+        }
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            mCanvas.width = width;
+            mCanvas.height = height;
+            eCanvas.width = width;
+            eCanvas.height = height;
+            
+            columns = Math.floor(width / fontSize);
+            drops = Array(columns).fill(1);
+        }
+
+        window.addEventListener('resize', resize);
+
+        function drawMatrix() {
+            mCtx.fillStyle = 'rgba(5, 5, 5, 0.1)';
+            mCtx.fillRect(0, 0, width, height);
+            
+            mCtx.font = fontSize + 'px monospace';
+            
+            for (let i = 0; i < drops.length; i++) {
+                const text = Math.floor(Math.random() * 10);
+                const color = Math.random() > 0.1 ? '#00fbff' : '#ff00ff';
+                
+                mCtx.fillStyle = color;
+                mCtx.fillText(text, i * fontSize, drops[i] * fontSize);
+                
+                if (drops[i] * fontSize > height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
+            }
+        }
+
+        class Particle {
+            constructor(x, y, color, speed) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.size = Math.random() * 10 + 2;
+                this.speedX = (Math.random() - 0.5) * speed;
+                this.speedY = (Math.random() - 0.5) * speed;
+                this.life = 1.0;
+                this.decay = 0.015 + Math.random() * 0.02;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.life -= this.decay;
+            }
+            draw() {
+                eCtx.globalAlpha = this.life;
+                eCtx.fillStyle = this.color;
+                eCtx.shadowBlur = 15;
+                eCtx.shadowColor = this.color;
+                eCtx.fillRect(this.x, this.y, this.size, this.size);
+            }
+        }
+
+        function spawnEffect(type) {
+            const x = width / 2;
+            const y = height / 2;
+            const count = 150;
+            
+            if (type === 'prime') {
+                const colors = ['#00fbff', '#ff00ff', '#fbee09', '#ffffff'];
+                for (let i = 0; i < count; i++) {
+                    particles.push(new Particle(x, y, colors[Math.floor(Math.random() * colors.length)], 30));
+                }
+            } else {
+                for (let i = 0; i < count; i++) {
+                    particles.push(new Particle(x, y, '#ff0055', 18));
+                }
+                const ui = document.getElementById('uiBox');
+                ui.classList.add('glitch-active');
+                setTimeout(() => ui.classList.remove('glitch-active'), 400);
+            }
+        }
+
+        function isPrime(n) {
+            if (n <= 1) return false;
+            if (n <= 3) return true;
+            if (n % 2 === 0 || n % 3 === 0) return false;
+            for (let i = 5; i * i <= n; i += 6) {
+                if (n % i === 0 || n % (i + 2) === 0) return false;
+            }
+            return true;
+        }
+
+        function checkPrime() {
+            const input = document.getElementById('numberInput');
+            const resultDiv = document.getElementById('result');
+            const num = parseInt(input.value);
+
+            if (isNaN(num)) {
+                resultDiv.innerText = "DATA_INVALID";
+                resultDiv.style.color = "white";
+                return;
+            }
+
+            if (isPrime(num)) {
+                resultDiv.innerText = "STATUS: PRIMO_DETECTADO";
+                resultDiv.style.color = "var(--neon-cyan)";
+                spawnEffect('prime');
+            } else {
+                resultDiv.innerText = "STATUS: NO_ES_PRIMO";
+                resultDiv.style.color = "#ff0055";
+                spawnEffect('fail');
+            }
+        }
+
+        function animate() {
+            drawMatrix();
+            eCtx.clearRect(0, 0, width, height);
+            
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw();
+                if (particles[i].life <= 0) particles.splice(i, 1);
+            }
+            requestAnimationFrame(animate);
+        }
+
+        init();
+    </script>
+</body>
+</html>
